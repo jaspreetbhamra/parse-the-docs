@@ -1,8 +1,8 @@
 import json
 import subprocess
 import sys
-from pprint import pprint
 
+# Start the MCP server
 proc = subprocess.Popen(
     ["python", "src/pdf_server.py"],
     stdin=subprocess.PIPE,
@@ -12,36 +12,26 @@ proc = subprocess.Popen(
 )
 
 
-def send(req, expect_id=None):
-    """Send one JSON-RPC request and wait for the matching response.
-    If server sends its own requests, respond minimally so init completes.
-    """
-    line = json.dumps(req)
-    proc.stdin.write(line + "\n")
-    proc.stdin.flush()
-
+def read_message():
+    """Read one JSON message from server stdout."""
     while True:
-        resp_line = proc.stdout.readline()
-        if not resp_line:
-            print("⚠️ No response received", file=sys.stderr)
+        line = proc.stdout.readline()
+        if not line:
             return None
         try:
-            msg = json.loads(resp_line)
+            return json.loads(line)
         except json.JSONDecodeError:
-            continue  # ignore junk lines
-
-        # Case 1: It's the response we wanted
-        if expect_id is None or msg.get("id") == expect_id:
-            return msg
-
-        # Case 2: It's a request from the server → send minimal result
-        if "method" in msg and "id" in msg:
-            ack = {"jsonrpc": "2.0", "id": msg["id"], "result": None}
-            proc.stdin.write(json.dumps(ack) + "\n")
-            proc.stdin.flush()
+            # Ignore anything that's not JSON
+            print(f"[STDOUT] {line.strip()}", file=sys.stderr)
 
 
-# 1. Initialize
+def send_message(msg):
+    """Send one JSON message to the server."""
+    proc.stdin.write(json.dumps(msg) + "\n")
+    proc.stdin.flush()
+
+
+# --- Step 1: Initialize ---
 init_req = {
     "jsonrpc": "2.0",
     "id": 1,
@@ -49,22 +39,43 @@ init_req = {
     "params": {
         "protocolVersion": "2024-11-05",
         "capabilities": {},
-        "clientInfo": {"name": "cli", "version": "0.1.0"},
+        "clientInfo": {"name": "test-client", "version": "0.1.0"},
     },
 }
 print("\n➡️ Sending initialize...")
-init_resp = send(init_req, expect_id=1)
-print("⬅️ INIT response:")
-pprint(init_resp)
+send_message(init_req)
 
-# 2. List tools
+while True:
+    msg = read_message()
+    if msg is None:
+        sys.exit("⚠️ Server closed connection")
+
+    print(f"\n⬅️ SERVER → CLIENT:\n{json.dumps(msg, indent=2)}")
+
+    # If this is the init response, break out
+    if msg.get("id") == 1 and "result" in msg:
+        break
+
+    # If it's a server request, auto-ack
+    if "method" in msg and "id" in msg:
+        ack = {"jsonrpc": "2.0", "id": msg["id"], "result": None}
+        send_message(ack)
+
+
+post_init_msg = {"jsonrpc": "2.0", "method": "notifications/initialized"}
+print("\n➡️ Sending initialized notification...")
+send_message(post_init_msg)
+
+
+# --- Step 2: List tools ---
 list_req = {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
 print("\n➡️ Sending tools/list...")
-tools_list = send(list_req, expect_id=2)
-print("⬅️ TOOLS LIST response:")
-pprint(tools_list)
+send_message(list_req)
 
-# 3. Call the tool
+msg = read_message()
+print(f"\n⬅️ TOOLS LIST:\n{json.dumps(msg, indent=2)}")
+
+# --- Step 3: Call list_documents ---
 call_req = {
     "jsonrpc": "2.0",
     "id": 3,
@@ -74,7 +85,8 @@ call_req = {
         "arguments": {"path": "./data/documents"},
     },
 }
-print("\n➡️ Sending tools/call (list_documents)...")
-call_resp = send(call_req, expect_id=3)
-print("⬅️ TOOL CALL response:")
-pprint(call_resp)
+print("\n➡️ Calling list_documents...")
+send_message(call_req)
+
+msg = read_message()
+print(f"\n⬅️ TOOL CALL RESPONSE:\n{json.dumps(msg, indent=2)}")
