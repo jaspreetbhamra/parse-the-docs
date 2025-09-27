@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "parse-the-docs"
+version = "0.1.0"
+description = "MCP server scaffolding for parsing PDF documents."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Jay" }]
+license = { text = "MIT" }
+dependencies = [
+    "structlog>=24.1",
+    "pydantic>=2.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black>=24.4",
+    "isort>=5.13",
+    "ruff>=0.4.4",
+    "pytest>=8.2",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.black]
+line-length = 79
+target-version = ["py312"]
+
+[tool.isort]
+profile = "black"
+line_length = 79
+
+[tool.ruff]
+line-length = 79
+select = ["E", "F", "W", "B", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
