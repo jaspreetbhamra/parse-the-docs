@@ -1,10 +1,12 @@
 # pdf_server_shared.py
 import os
 from pathlib import Path
+
 from mcp.server.fastmcp import FastMCP
-from utils.pdf_utils import extract_pdf_text, extract_pdf_metadata
-from utils.docx_utils import extract_docx_text, extract_docx_metadata
+
+from utils.docx_utils import extract_docx_metadata, extract_docx_text
 from utils.embeddings import build_index, semantic_search
+from utils.pdf_utils import extract_pdf_metadata, extract_pdf_text
 
 # Keep an in-memory cache to avoid recomputing
 doc_cache = {}
@@ -45,8 +47,9 @@ def resolve_file(path: Path | str | os.PathLike[str]) -> tuple[Path, str]:
 
 
 @server.tool()
-def parse_text(path: Path | str = get_document_path()):
+def parse_text(path: Path | str):
     """Extract raw text from a document."""
+    path = get_document_path(path)
     path, ext = resolve_file(path)
     if ext == "pdf":
         return {"text": extract_pdf_text(path)}
@@ -57,8 +60,9 @@ def parse_text(path: Path | str = get_document_path()):
 
 
 @server.tool()
-def parse_metadata(path: Path | str = get_document_path()):
+def parse_metadata(path: Path | str):
     """Extract metadata from a document."""
+    path = get_document_path(path)
     path, ext = resolve_file(path)
     if ext == "pdf":
         return {"metadata": extract_pdf_metadata(path)}
